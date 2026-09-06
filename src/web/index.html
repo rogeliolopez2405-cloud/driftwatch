@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Driftwatch</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <h1>Driftwatch</h1>
+    </div>
+
+    <nav class="views" role="tablist" aria-label="Board views">
+      <button type="button" role="tab" data-view="all" aria-selected="true" class="view is-on">
+        All <span class="count" data-count="cards">0</span>
+      </button>
+      <button type="button" role="tab" data-view="attention" aria-selected="false" class="view">
+        Needs attention <span class="count" data-count="attention">0</span>
+      </button>
+    </nav>
+
+    <div class="bar-end">
+      <span class="stamp" data-stamp>&nbsp;</span>
+      <button type="button" class="refresh" data-refresh>Refresh</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid" data-grid></div>
+
+    <p class="empty" data-empty hidden>
+      Nothing here yet. Add a collector to <code>collectors/</code> and run
+      <code>npm run once</code>.
+    </p>
+  </main>
+
+  <div class="drawer" data-drawer hidden>
+    <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+      <button type="button" class="drawer-close" data-drawer-close aria-label="Close">&times;</button>
+      <h2 id="drawer-title" data-drawer-title>Card</h2>
+      <dl class="facts" data-drawer-facts></dl>
+      <h3>Recent readings</h3>
+      <div class="spark-wrap" data-drawer-spark></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

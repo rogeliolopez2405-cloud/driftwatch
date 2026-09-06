@@ -1,0 +1,45 @@
+# PUBLIC CI
+#
+# Everything here is self-contained in this repository. A fork, a pull request
+# from a fork, and a clone on a stranger's laptop all run exactly these checks
+# and get exactly this answer. Nothing in this workflow needs a secret, and no
+# contribution can fail here for want of material only the maintainers hold.
+
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # No install step. Driftwatch has zero dependencies by design, and a
+      # failing `npm ci` here would mean one crept in.
+      - name: Assert zero dependencies
+        run: node -e "const p=require('./package.json');const n=Object.keys(p.dependencies||{}).length+Object.keys(p.devDependencies||{}).length;if(n){console.error('expected 0 dependencies, found '+n);process.exit(1)}"
+
+      - name: Assert no lockfile and no vendored modules
+        run: |
+          test ! -e package-lock.json || { echo "package-lock.json present"; exit 1; }
+          test ! -d node_modules || { echo "node_modules present"; exit 1; }
+
+      - name: Test
+        run: npm test
+
+      - name: Demo board runs deterministically
+        run: npm run once
+
+      # Prove the public detector set still works before trusting a clean scan.
+      - name: Prove the detectors
+        run: npm run check:detectors
+
+      - name: Public checks
+        run: npm run check

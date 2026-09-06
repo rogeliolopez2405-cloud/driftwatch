@@ -1,0 +1,22 @@
+{
+  "port": 8787,
+  "collectorsDir": "collectors",
+  "storeFile": ".driftwatch/store.json",
+  "historyLength": 10,
+  "rules": [
+    {
+      "id": "battery-low",
+      "key": "demo.device.battery",
+      "kind": "below",
+      "threshold": 20,
+      "flag": "low"
+    },
+    {
+      "id": "renewal-due-soon",
+      "key": "demo.renewal.*",
+      "kind": "withinDays",
+      "threshold": 7,
+      "flag": "due-soon"
+    }
+  ]
+}

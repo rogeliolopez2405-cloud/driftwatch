@@ -1,0 +1,24 @@
+# Driftwatch runtime state - never committed.
+.driftwatch/
+
+# Your own config. The example config ships; yours does not.
+config/driftwatch.json
+
+# Never, under any circumstance.
+.env
+.env.*
+*.pem
+*.key
+credentials
+secrets
+
+# Tooling
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# OS noise
+.DS_Store
+Thumbs.db

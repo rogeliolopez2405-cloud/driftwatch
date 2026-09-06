@@ -1,0 +1,35 @@
+{
+  "name": "driftwatch",
+  "version": "0.1.0",
+  "description": "A small local status board for the handful of things you keep re-checking. Collectors report readings, readings go stale, stale things ask for attention.",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "bin": {
+    "driftwatch": "src/cli.ts"
+  },
+  "main": "src/cli.ts",
+  "files": [
+    "src",
+    "collectors",
+    "config",
+    "examples",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node src/cli.ts serve",
+    "once": "node src/cli.ts once",
+    "board": "node src/cli.ts board",
+    "test": "node --test test/*.test.ts",
+    "check": "node tools/release-gate/gate.mjs --public",
+    "check:detectors": "node tools/release-gate/selftest.mjs --public --verbose",
+    "release:check": "node tools/release-gate/gate.mjs --owner"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

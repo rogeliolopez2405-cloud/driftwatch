@@ -1,0 +1,43 @@
+# OWNER RELEASE CHECKS
+#
+# Not part of public CI, and deliberately not triggered by pull requests.
+#
+# These checks additionally require an external rule list that is held outside
+# the repository. Forked pull requests do not receive repository secrets, so
+# running this on a fork PR would fail every outside contribution for a reason
+# that has nothing to do with the contribution. Public CI covers those PRs; see
+# ci.yml.
+#
+# If the external list is unavailable the run returns NO_VERDICT and exits 2.
+# It never falls back to the public checks and calls the result a release.
+
+name: release-checks
+
+on:
+  workflow_dispatch:
+
+jobs:
+  owner-release-checks:
+    # Never runs on a fork, even if someone dispatches it there. (Comparing
+    # the repository owner to itself would always be true and guard nothing.)
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Materialise the external rule list
+        env:
+          RULES: ${{ secrets.DRIFTWATCH_RELEASE_RULES }}
+        run: |
+          test -n "$RULES" || { echo "external rule list not configured; owner checks cannot run"; exit 2; }
+          mkdir -p "$HOME/.driftwatch-release-gate"
+          printf '%s\n' "$RULES" > "$HOME/.driftwatch-release-gate/denylist.local.txt"
+
+      - name: Owner release checks
+        run: npm run release:check
