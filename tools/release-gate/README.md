@@ -159,6 +159,29 @@ One term per line. Blank lines and `#` comments are ignored. A line wrapped in
 slashes is treated as a regular expression, which is how a bare numeric token
 gets matched on word boundaries without also matching every port number.
 
+### Expected-public identifiers
+
+A line beginning with `+` declares an exact string the operator has
+deliberately published — typically the account handle that appears in the
+project's own clone URL, which no README can avoid writing down.
+
+```
++some-account-handle
+```
+
+The exemption is deliberately the narrowest one that works. A forbidden term is
+skipped **only** when its match falls entirely inside an occurrence of the
+declared string, **and** that occurrence stands alone — the characters on either
+side may not be identifier characters. So the handle is exempt inside a clone
+URL, where slashes delimit it, and nowhere that it is merely part of something
+longer: `<handle>-backup`, `old-<handle>` and any near-miss handle all still
+block, as does every fragment of it appearing anywhere else.
+
+It governs identity classification only. An expected-public string never
+exempts anything from the credential, token, path or secret detectors — those
+do not consult this list at all. A key sitting next to the declared handle
+blocks exactly as it would anywhere else.
+
 ## Detectors
 
 Fourteen, plus binary and origin checks. Content detectors run on file text;
@@ -257,6 +280,31 @@ working tree.
 Success sets a proof token bound to the current process id. The scan refuses to
 run without it, so the self-test cannot be skipped by calling the scanner
 directly.
+
+## Note for maintainers: running the owner checks in CI
+
+Nothing in this section affects contributors. Public CI is self-contained and
+needs no configuration, no secret, and no access to anything a fork cannot see.
+If you are sending a pull request, you can stop reading here.
+
+The owner release checks read an external rule list, which by design is never
+committed. To run them in CI, a maintainer supplies that list as a repository
+secret named `DRIFTWATCH_RELEASE_RULES`, which the release workflow writes to
+the path the gate reads at runtime.
+
+Until that secret exists, the release workflow cannot complete and will report
+`NO_VERDICT` — the correct outcome, not a fault. A missing rule list must never
+produce a passing release verdict, because a release that silently checked less
+than it claimed is precisely what this tool exists to prevent.
+
+**Running the owner checks locally is a perfectly valid way to release.** A
+maintainer with the rule list on their own machine runs `npm run release:check`
+and gets the same verdict CI would give. The secret is a convenience for
+automating that, not a requirement for doing it.
+
+The release workflow is `workflow_dispatch` only and is guarded against running
+on a fork, so it never fires on a pull request. That separation is deliberate:
+a contribution is judged entirely by checks the contributor can run themselves.
 
 ## A pass is not authorization to publish
 

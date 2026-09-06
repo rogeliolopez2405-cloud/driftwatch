@@ -122,11 +122,37 @@ function collect(text, re, why, keepIf) {
 /* Denylist compilation (terms arrive from OUTSIDE the repository)     */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Compile the operator's rule list.
+ *
+ * A line beginning with `+` declares an EXPECTED-PUBLIC exact string: an
+ * identifier the operator has deliberately published, such as the account
+ * handle that necessarily appears in this repository's own clone URL. There is
+ * no way to write a clone command without it, so forbidding it would forbid
+ * the README from doing its job.
+ *
+ * The exemption is the narrowest one that can work. It is positional
+ * containment, not string equality: a forbidden term is skipped only when its
+ * match falls ENTIRELY INSIDE an occurrence of an expected-public string. The
+ * same term one character outside that span still fires; a different
+ * identifier that merely shares a fragment still fires; every other rule is
+ * untouched.
+ *
+ * It governs identity classification only. No expected-public string ever
+ * exempts anything from the credential, token, path, or secret detectors —
+ * those never consult this list at all.
+ */
 export function compileDenylist(lines) {
   const rules = [];
+  const allow = [];
   for (const raw of lines) {
     const line = raw.trim();
     if (!line || line.startsWith('#')) continue;
+    if (line.startsWith('+')) {
+      const exact = line.slice(1).trim();
+      if (exact) allow.push(exact);
+      continue;
+    }
     if (line.startsWith('/') && line.lastIndexOf('/') > 0) {
       const body = line.slice(1, line.lastIndexOf('/'));
       rules.push(new RegExp(body, 'gi'));
@@ -135,7 +161,41 @@ export function compileDenylist(lines) {
       rules.push(new RegExp(escaped, 'gi'));
     }
   }
+  rules.allow = allow;
   return rules;
+}
+
+/** Identifier characters. An expected-public string must stand alone. */
+const IDENT = /[A-Za-z0-9_-]/;
+
+/**
+ * Character spans covered by an expected-public string, within this text.
+ *
+ * The occurrence must be a WHOLE token: the characters immediately before and
+ * after it may not be identifier characters. Without that, a longer identifier
+ * that merely begins with the declared string would inherit its exemption —
+ * `<handle>-backup` would be waved through because every forbidden term inside
+ * it sits within the declared prefix. A probe caught exactly that.
+ *
+ * With the boundary check, the declared handle is exempt in a clone URL, where
+ * slashes delimit it, and nowhere that it is merely part of something longer.
+ */
+export function allowedSpans(text, allow) {
+  const spans = [];
+  const hay = text.toLowerCase();
+  for (const exact of allow || []) {
+    const needle = exact.toLowerCase();
+    if (!needle) continue;
+    let i = hay.indexOf(needle);
+    while (i !== -1) {
+      const before = i > 0 ? hay[i - 1] : '';
+      const after = i + needle.length < hay.length ? hay[i + needle.length] : '';
+      const standsAlone = !IDENT.test(before) && !IDENT.test(after);
+      if (standsAlone) spans.push([i, i + needle.length]);
+      i = hay.indexOf(needle, i + 1);
+    }
+  }
+  return spans;
 }
 
 /**
@@ -166,10 +226,14 @@ export async function loadDenylist(explicitPath) {
   }
 
   const raw = fs.readFileSync(file, 'utf8');
+  // Forbidden literals only. Expected-public entries are deliberately NOT in
+  // this list: it is what the self-test draws canaries from, and a canary
+  // built from a string that is meant to be exempt can never be caught. The
+  // self-test found exactly that, at random, which is what it is for.
   const literals = raw
     .split(/\r?\n/)
     .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith('#') && !l.startsWith('/'));
+    .filter((l) => l && !l.startsWith('#') && !l.startsWith('/') && !l.startsWith('+'));
   const rules = compileDenylist(raw.split(/\r?\n/));
 
   if (rules.length < MIN_DENYLIST_RULES) {
@@ -185,6 +249,9 @@ export async function loadDenylist(explicitPath) {
     file,
     rules,
     literals,
+    // Exact identifiers the operator has deliberately published. Counted in
+    // the report so an added exemption is always visible.
+    allow: rules.allow || [],
     digest: crypto.createHash('sha256').update(raw).digest('hex').slice(0, 16),
   };
 }
@@ -206,6 +273,9 @@ const PLACEHOLDER = /^(x{3,}|y{3,}|<[^>]*>|\{\{.*\}\}|changeme|example|placehold
  */
 export function buildDetectors(options) {
   const denylist = (options && options.denylist) || [];
+  // Exact identifiers the operator has deliberately published. Used by the
+  // rule-list detector alone; every other detector ignores it entirely.
+  const allowList = (options && options.allowPublic) || denylist.allow || [];
 
   const detectors = [
     {
@@ -411,17 +481,25 @@ export function buildDetectors(options) {
 
     {
       id: 'denylist-term',
-      label: 'Private term from the external denylist',
+      label: 'Private term from the external rule list',
       severity: 'block',
       kind: 'content',
+      // The ONLY detector that consults the expected-public list, and it does
+      // so by position: a match is skipped solely when it sits entirely inside
+      // an occurrence of a string the operator has declared public. Nothing
+      // here can exempt a value from any other detector.
       scan: (text) => {
         const out = [];
+        const spans = allowedSpans(text, allowList);
+        const inside = (start, end) => spans.some(([a, b]) => start >= a && end <= b);
+
         for (const rule of denylist) {
           const flags = rule.flags.includes('g') ? rule.flags : rule.flags + 'g';
           const re = new RegExp(rule.source, flags);
           let m;
           while ((m = re.exec(text)) !== null) {
             if (m[0].length === 0) { re.lastIndex += 1; continue; }
+            if (inside(m.index, m.index + m[0].length)) continue;
             out.push({
               line: lineOf(text, m.index),
               excerpt: '[listed term withheld from this report]',

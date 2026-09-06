@@ -24,7 +24,8 @@ configure with a secret.
 ## Try it
 
 ```sh
-git clone <this repo> && cd driftwatch
+git clone https://github.com/rogeliolopez2405-cloud/driftwatch.git
+cd driftwatch
 npm start
 ```
 

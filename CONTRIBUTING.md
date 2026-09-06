@@ -5,7 +5,8 @@ Driftwatch is small on purpose. The most useful contributions keep it that way.
 ## Getting set up
 
 ```sh
-git clone <this repo> && cd driftwatch
+git clone https://github.com/rogeliolopez2405-cloud/driftwatch.git
+cd driftwatch
 npm test
 npm start
 ```

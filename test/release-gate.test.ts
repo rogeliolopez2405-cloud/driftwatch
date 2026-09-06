@@ -256,3 +256,138 @@ test('H2. a clean repository passes public checks with no external list at all',
     assert.equal(r.exitCode, 0);
   });
 });
+
+/* ---------------------------------------------------------------- */
+/* I: the expected-public exception, and how narrow it is            */
+/* ---------------------------------------------------------------- */
+
+/**
+ * An operator may declare an exact identifier they have deliberately
+ * published — typically the account handle that appears in their own clone
+ * URL, which no README can avoid.
+ *
+ * These prove the exception is positional containment and nothing more: it
+ * covers the exact declared string, it does not cover the same fragment
+ * anywhere else, it does not cover a different identifier that merely shares
+ * that fragment, and it never exempts anything from a credential detector.
+ *
+ * The rule list here is synthetic and written per test. Nothing about any real
+ * operator's list appears in this repository.
+ */
+const FORBIDDEN = 'quill';
+const PUBLISHED = 'quillstone-demo-4417';
+
+/**
+ * The rule list is written OUTSIDE the repository under test.
+ *
+ * Writing it inside would make it an untracked, non-ignored file — a
+ * publishable surface — and the gate would block on the forbidden terms it
+ * contains. It does, in fact: an earlier version of this helper put the file
+ * in the repo and the gate caught it, which is the whole reason a real rule
+ * list never lives in a tree either.
+ */
+function ruleList(): string {
+  const outside = mkdtempSync(join(tmpdir(), 'dw-rules-'));
+  const file = join(outside, 'rules.txt');
+  writeFileSync(
+    file,
+    ['zephyrcorp', FORBIDDEN, 'lattice', 'fernvale', 'brookmere', '+' + PUBLISHED].join('\n') + '\n',
+    'utf8',
+  );
+  return file;
+}
+
+test('I. the exact published identifier is allowed in a tracked clone URL', () => {
+  withRepo((dir, git) => {
+    writeFileSync(join(dir, 'README.md'),
+      '# Fixture\n\n```sh\ngit clone https://example.com/' + PUBLISHED + '/x.git\n```\n', 'utf8');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'clone url');
+
+    const r = runGate(dir, 'owner', { DRIFTWATCH_DENYLIST: ruleList() });
+    assert.equal(r.publicPayload, 'PASS');
+    assert.ok(!r.findings.some((f) => f.detector === 'denylist-term'));
+  });
+});
+
+test('I2. the same fragment outside the published identifier still blocks', () => {
+  withRepo((dir, git) => {
+    writeFileSync(join(dir, 'README.md'), '# Fixture\n\nnotes about ' + FORBIDDEN + ' handling\n', 'utf8');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'note');
+
+    const r = runGate(dir, 'owner', { DRIFTWATCH_DENYLIST: ruleList() });
+    assert.equal(r.publicPayload, 'BLOCKED');
+    assert.ok(r.findings.some((f) => f.detector === 'denylist-term' && f.surface === 'publishable'));
+  });
+});
+
+test('I3. a different identifier sharing the fragment still blocks', () => {
+  withRepo((dir, git) => {
+    writeFileSync(join(dir, 'README.md'), '# Fixture\n\nsee ' + FORBIDDEN + 'stone-demo-9999\n', 'utf8');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'other');
+
+    const r = runGate(dir, 'owner', { DRIFTWATCH_DENYLIST: ruleList() });
+    assert.equal(r.publicPayload, 'BLOCKED', 'a near-miss identifier is not the declared one');
+  });
+});
+
+test('I4. an unrelated forbidden term is unaffected by the exception', () => {
+  withRepo((dir, git) => {
+    writeFileSync(join(dir, 'README.md'), '# Fixture\n\n' + PUBLISHED + ' and zephyrcorp\n', 'utf8');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'both');
+
+    const r = runGate(dir, 'owner', { DRIFTWATCH_DENYLIST: ruleList() });
+    assert.equal(r.publicPayload, 'BLOCKED', 'the other term still fires');
+  });
+});
+
+test('I5. the published identifier in the remote URL is local hygiene, not a block', () => {
+  withRepo((dir, git) => {
+    git('remote', 'add', 'origin', 'https://example.com/' + PUBLISHED + '/x.git');
+
+    const r = runGate(dir, 'owner', { DRIFTWATCH_DENYLIST: ruleList() });
+    assert.equal(r.publicPayload, 'PASS');
+    assert.equal(r.ownerRelease, 'PASS');
+  });
+});
+
+test('I6. the exception never exempts a credential sitting beside it', () => {
+  withRepo((dir, git) => {
+    writeFileSync(join(dir, 'README.md'),
+      '# ' + PUBLISHED + '\n\nkey ' + 's' + 'k-' + token(38) + '\n', 'utf8');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'key');
+
+    const r = runGate(dir, 'owner', { DRIFTWATCH_DENYLIST: ruleList() });
+    assert.equal(r.publicPayload, 'BLOCKED');
+    assert.ok(r.findings.some((f) => f.detector === 'vendor-key'),
+      'the credential detector never consults the expected-public list');
+  });
+});
+
+test('I7. a longer identifier beginning with the published one still blocks', () => {
+  withRepo((dir, git) => {
+    // The exemption is for a whole token, not a prefix. Without that, anything
+    // starting with the declared string would inherit its exemption.
+    writeFileSync(join(dir, 'README.md'), '# Fixture\n\nsee ' + PUBLISHED + '-backup\n', 'utf8');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'suffix');
+
+    const r = runGate(dir, 'owner', { DRIFTWATCH_DENYLIST: ruleList() });
+    assert.equal(r.publicPayload, 'BLOCKED');
+  });
+});
+
+test('I8. the published identifier glued to other text still blocks', () => {
+  withRepo((dir, git) => {
+    writeFileSync(join(dir, 'README.md'), '# Fixture\n\nsee old-' + PUBLISHED + '\n', 'utf8');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'prefix');
+
+    const r = runGate(dir, 'owner', { DRIFTWATCH_DENYLIST: ruleList() });
+    assert.equal(r.publicPayload, 'BLOCKED');
+  });
+});

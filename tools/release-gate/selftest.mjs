@@ -135,6 +135,7 @@ export async function runSelfTest(options) {
     denylistFile: deny ? deny.file : null,
     denylistDigest: deny ? deny.digest : null,
     denylistRules: deny ? deny.rules.length : 0,
+    denylistAllow: deny ? (deny.allow || []).length : 0,
     results,
   };
 
@@ -148,7 +149,8 @@ function report(p, verbose) {
     ? p.denylistFile
     : 'NOT LOADED - public checks only, denylist detector not in this set'));
   if (p.denylistActive) {
-    lines.push('  denylist rules  ' + p.denylistRules + ' (sha256:' + p.denylistDigest + ')');
+    lines.push('  denylist rules  ' + p.denylistRules + ' forbidden, '
+      + p.denylistAllow + ' expected-public (sha256:' + p.denylistDigest + ')');
   }
   lines.push('  detectors       ' + p.activeDetectors.length + ' active');
   lines.push('  canaries caught ' + p.caught + '/' + p.total);

@@ -463,6 +463,7 @@ async function main() {
       denylistFile: selfTest.denylistFile,
       denylistDigest: selfTest.denylistDigest,
       denylistRules: selfTest.denylistRules,
+      denylistAllow: selfTest.denylistAllow,
     },
     manifest: OPTS.manifest ? buildManifest() : null,
     surfaces: surfaceCounts,
@@ -520,7 +521,8 @@ function render(r) {
     + (r.selfTest.negativeClean ? 'clean' : 'DIRTY'));
   L.push('  detectors        ' + r.selfTest.activeDetectors.length + ' active, each proven this run');
   if (r.selfTest.denylistActive) {
-    L.push('  operator list    ' + r.selfTest.denylistRules + ' rules, sha256:' + r.selfTest.denylistDigest);
+    L.push('  operator list    ' + r.selfTest.denylistRules + ' rules, '
+      + r.selfTest.denylistAllow + ' expected-public, sha256:' + r.selfTest.denylistDigest);
     L.push('  list source      ' + r.selfTest.denylistFile);
   } else {
     L.push('  operator list    not used - public checks are self-contained by design');
